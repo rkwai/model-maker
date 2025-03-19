@@ -9,6 +9,7 @@ const ANIMATIONS = [
   { id: 'rotate', name: 'Rotate', description: 'Rotate the model around its Y axis' },
   { id: 'bounce', name: 'Bounce', description: 'Make the model bounce up and down' },
   { id: 'scale', name: 'Scale', description: 'Grow and shrink the model' },
+  { id: 'walk', name: 'Walk', description: 'Make the model walk in place' },
   { id: 'custom', name: 'Custom', description: 'Create your own animation' }
 ];
 
@@ -21,7 +22,19 @@ const AnimatedModel = ({ url, animation, customAnimation }) => {
   useEffect(() => {
     // Apply built-in animations if they exist
     if (animations.length > 0 && animation !== 'custom') {
-      // Use the first animation action if it exists
+      // Look for walking animation in the model's animations
+      const walkAnimationName = Object.keys(actions).find(name => 
+        name.toLowerCase().includes('walk') || 
+        name.toLowerCase().includes('run') || 
+        name.toLowerCase().includes('idle')
+      );
+      
+      if (walkAnimationName && animation === 'walk') {
+        actions[walkAnimationName].reset().play();
+        return;
+      }
+      
+      // Use the first animation action if no walking animation found
       const actionName = Object.keys(actions)[0];
       if (actionName) {
         actions[actionName].reset().play();
@@ -30,6 +43,25 @@ const AnimatedModel = ({ url, animation, customAnimation }) => {
     }
 
     // Apply custom animations
+    if (animation === 'walk') {
+      let time = 0;
+      const animate = () => {
+        if (group.current) {
+          // Simulate walking motion
+          time += 0.1;
+          // Up/down bounce motion
+          group.current.position.y = Math.sin(time * 2) * 0.1;
+          // Slight left/right sway
+          group.current.rotation.z = Math.sin(time) * 0.05;
+          // Forward lean
+          group.current.rotation.x = Math.sin(time * 2) * 0.05;
+        }
+        animationFrameId = requestAnimationFrame(animate);
+      };
+      let animationFrameId = requestAnimationFrame(animate);
+      return () => cancelAnimationFrame(animationFrameId);
+    }
+    
     if (animation === 'rotate') {
       const animate = () => {
         if (group.current) {
@@ -148,169 +180,170 @@ const Animator = () => {
       <header className="bg-white shadow-md">
         <div className="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8">
           <h1 className="text-2xl font-bold text-gray-700">GLB Model Animator</h1>
-          <p className="text-gray-500">Current model: {fileName}</p>
+          <p className="text-xl text-gray-500">Current model: {fileName}</p>
         </div>
       </header>
 
-      <main className="flex-grow flex">
-        {/* 3D Viewer */}
-        <div className="w-3/4 h-full">
-          <Canvas camera={{ position: [0, 0, 5], fov: 50 }}>
-            <Suspense fallback={null}>
-              <Stage environment="city" intensity={0.5}>
-                <AnimatedModel 
-                  url={modelUrl} 
-                  animation={animation} 
-                  customAnimation={animation === 'custom' ? customAnimation : null} 
-                />
-              </Stage>
-            </Suspense>
-            <OrbitControls enableZoom={true} enablePan={true} />
-          </Canvas>
-        </div>
-
-        {/* Controls Panel */}
-        <div className="w-1/4 bg-white p-4 shadow-inner border-l border-gray-200 overflow-y-auto">
-          <div 
-            {...getRootProps()} 
-            className={`border-2 border-dashed p-4 rounded-lg text-center mb-5 ${
-              isDragActive ? 'border-blue-400 bg-blue-50' : 'border-gray-300'
-            }`}
-          >
-            <input {...getInputProps()} />
-            {isDragActive ? (
-              <p className="text-blue-500">Drop the GLB file here...</p>
-            ) : (
-              <p className="text-gray-500">
-                Drag & drop a GLB file here, or click to select a file
-              </p>
-            )}
-          </div>
-
-          <div className="mb-6">
-            <h3 className="font-medium text-gray-700 mb-2">Animation Type</h3>
-            <div className="space-y-2">
-              {ANIMATIONS.map(anim => (
-                <div key={anim.id} className="flex items-center">
-                  <input
-                    type="radio"
-                    id={anim.id}
-                    name="animation"
-                    value={anim.id}
-                    checked={animation === anim.id}
-                    onChange={handleAnimationChange}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500"
+      <div className="viewer-container neumorphic mt-4 flex flex-col flex-grow">
+        <div className="preview-area neumorphic-inset flex-grow">
+          {modelUrl ? (
+            <Canvas camera={{ position: [0, 0, 5], fov: 50 }}>
+              <Suspense fallback={null}>
+                <Stage environment="city" intensity={0.5}>
+                  <AnimatedModel 
+                    url={modelUrl} 
+                    animation={animation} 
+                    customAnimation={animation === 'custom' ? customAnimation : null} 
                   />
-                  <label htmlFor={anim.id} className="ml-2 text-sm text-gray-700">
-                    {anim.name} - {anim.description}
-                  </label>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {animation === 'custom' && (
-            <div className="mb-6">
-              <h3 className="font-medium text-gray-700 mb-3">Custom Animation Controls</h3>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Rotation X</label>
-                  <input
-                    type="range"
-                    name="rotationX"
-                    min="-0.05"
-                    max="0.05"
-                    step="0.001"
-                    value={customAnimation.rotationX}
-                    onChange={handleCustomAnimationChange}
-                    className="w-full"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Rotation Y</label>
-                  <input
-                    type="range"
-                    name="rotationY"
-                    min="-0.05"
-                    max="0.05"
-                    step="0.001"
-                    value={customAnimation.rotationY}
-                    onChange={handleCustomAnimationChange}
-                    className="w-full"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Rotation Z</label>
-                  <input
-                    type="range"
-                    name="rotationZ"
-                    min="-0.05"
-                    max="0.05"
-                    step="0.001"
-                    value={customAnimation.rotationZ}
-                    onChange={handleCustomAnimationChange}
-                    className="w-full"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Position X Range</label>
-                  <input
-                    type="range"
-                    name="positionX"
-                    min="0"
-                    max="1"
-                    step="0.1"
-                    value={customAnimation.positionX}
-                    onChange={handleCustomAnimationChange}
-                    className="w-full"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Position Y Range</label>
-                  <input
-                    type="range"
-                    name="positionY"
-                    min="0"
-                    max="1"
-                    step="0.1"
-                    value={customAnimation.positionY}
-                    onChange={handleCustomAnimationChange}
-                    className="w-full"
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-xs text-gray-500 mb-1">Position Z Range</label>
-                  <input
-                    type="range"
-                    name="positionZ"
-                    min="0"
-                    max="1"
-                    step="0.1"
-                    value={customAnimation.positionZ}
-                    onChange={handleCustomAnimationChange}
-                    className="w-full"
-                  />
-                </div>
-              </div>
+                </Stage>
+              </Suspense>
+              <OrbitControls enableZoom={true} enablePan={true} />
+            </Canvas>
+          ) : (
+            <div
+              {...getRootProps()}
+              className={`border-2 border-dashed p-4 rounded-lg text-center ${isDragActive ? 'border-blue-400 bg-blue-50' : 'border-gray-300'}`}
+            >
+              <input {...getInputProps()} />
+              {isDragActive ? (
+                <p className="text-blue-500">Drop the GLB file here...</p>
+              ) : (
+                <p className="text-gray-500">Drag & drop a GLB file here, or click to select a file</p>
+              )}
             </div>
           )}
-
-          <div className="mt-6">
+        </div>
+        {modelUrl && (
+          <div className="flex justify-center mt-4 mb-8">
             <button
-              className="w-full py-2 px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              onClick={handleExportAnimated}
+              {...getRootProps()}
+              className="icon-button text-gray-700 font-medium hover:opacity-80 transition-opacity"
             >
-              Export Animated Model
+              Change Model
+              <input {...getInputProps()} />
             </button>
           </div>
+        )}
+      </div>
+
+      <div className="p-4 bg-white shadow-md mt-4">
+        <div className="mb-6">
+          <h3 className="font-medium text-gray-700 mb-2">Animation Type</h3>
+          <div className="space-y-2">
+            {ANIMATIONS.map(anim => (
+              <div key={anim.id} className="flex items-center">
+                <input
+                  type="radio"
+                  id={anim.id}
+                  name="animation"
+                  value={anim.id}
+                  checked={animation === anim.id}
+                  onChange={handleAnimationChange}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500"
+                />
+                <label htmlFor={anim.id} className="ml-2 text-sm text-gray-700">
+                  {anim.name} - {anim.description}
+                </label>
+              </div>
+            ))}
+          </div>
         </div>
-      </main>
+
+        {animation === 'custom' && (
+          <div className="mb-6">
+            <h3 className="font-medium text-gray-700 mb-3">Custom Animation Controls</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Rotation X</label>
+                <input
+                  type="range"
+                  name="rotationX"
+                  min="-0.05"
+                  max="0.05"
+                  step="0.001"
+                  value={customAnimation.rotationX}
+                  onChange={handleCustomAnimationChange}
+                  className="w-full"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Rotation Y</label>
+                <input
+                  type="range"
+                  name="rotationY"
+                  min="-0.05"
+                  max="0.05"
+                  step="0.001"
+                  value={customAnimation.rotationY}
+                  onChange={handleCustomAnimationChange}
+                  className="w-full"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Rotation Z</label>
+                <input
+                  type="range"
+                  name="rotationZ"
+                  min="-0.05"
+                  max="0.05"
+                  step="0.001"
+                  value={customAnimation.rotationZ}
+                  onChange={handleCustomAnimationChange}
+                  className="w-full"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Position X Range</label>
+                <input
+                  type="range"
+                  name="positionX"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  value={customAnimation.positionX}
+                  onChange={handleCustomAnimationChange}
+                  className="w-full"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Position Y Range</label>
+                <input
+                  type="range"
+                  name="positionY"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  value={customAnimation.positionY}
+                  onChange={handleCustomAnimationChange}
+                  className="w-full"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Position Z Range</label>
+                <input
+                  type="range"
+                  name="positionZ"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  value={customAnimation.positionZ}
+                  onChange={handleCustomAnimationChange}
+                  className="w-full"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="mt-6">
+          <button
+            className="w-full py-2 px-4 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onClick={handleExportAnimated}
+          >
+            Export Animated Model
+          </button>
+        </div>
+      </div>
     </div>
   );
 };
